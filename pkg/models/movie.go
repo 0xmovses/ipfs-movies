@@ -37,3 +37,9 @@ func (m *Movie) Create() *Movie {
 	log.Println(result)
 	return m
 }
+
+func GetMovieById(id int64) (*Movie, *gorm.DB) {
+	var movie Movie
+	db := db.Where("id = ?", id).Find(&movie)
+	return &movie, db
+}
