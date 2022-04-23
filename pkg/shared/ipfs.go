@@ -1,4 +1,4 @@
-package config
+package shared
 
 import (
 	"bytes"
@@ -10,14 +10,14 @@ import (
 	"time"
 )
 
-const baseUrl = "https://api.pinata.cloud/psa"
+const baseURL = "https://api.pinata.cloud"
 
 //IpfsClient is a client for the IPFS API
 type IpfsClient struct {
-	BaseUrl    string
+	BaseURL    string
 	apiKey     string
 	apiSecret  string
-	HttpClient *http.Client
+	HTTPClient *http.Client
 }
 
 type ipfsErrorResponse struct {
@@ -41,23 +41,24 @@ type Pin struct {
 //NewIpfsClient creates a new IPFS client
 func NewIpfsClient(apiKey string, apiSecret string) *IpfsClient {
 	return &IpfsClient{
-		BaseUrl:   baseUrl,
+		BaseURL:   baseURL,
 		apiKey:    apiKey,
 		apiSecret: apiSecret,
-		HttpClient: &http.Client{
+		HTTPClient: &http.Client{
 			Timeout: time.Second * 10,
 		},
 	}
 }
 
-//sendRequest sends a request to the IPFS API
-func (c *IpfsClient) sendRequest(req *http.Request, v interface{}) error {
+//SendRequest sends a request to the IPFS API
+func (c *IpfsClient) SendRequest(req *http.Request, v interface{}) error {
+	req.Header.Set("Content-Type", "application/json; charset=UTF-8")
 	req.Header.Set("pinata_api_key", os.Getenv("PINATA_API_KEY"))
 	req.Header.Set("pinata_secret_api_key", os.Getenv("PINATA_SECRET_API_KEY"))
 
-	res, err := c.HttpClient.Do(req)
+	res, err := c.HTTPClient.Do(req)
 	if err != nil {
-		return err
+		return fmt.Errorf("Error sending round trip http request: %v", err)
 	}
 
 	defer res.Body.Close()
@@ -83,20 +84,22 @@ func (c *IpfsClient) sendRequest(req *http.Request, v interface{}) error {
 
 //PinJSON pin a json object to IPFS
 func (c *IpfsClient) PinJSON(data interface{}) (*Pin, error) {
-	url := c.BaseUrl + "/pinning/pingJSONToIPFS"
+	url := c.BaseURL + "/pinning/pinJSONToIPFS"
 	jsonData, err := json.Marshal(data)
-
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Error marshalling data: %v", err)
 	}
 
-	req, _ := http.NewRequest("Post", url, bytes.NewBuffer(jsonData))
-	req.Header.Set("Content-Type", "application/json; charset=UTF-8")
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return nil, fmt.Errorf("Error creating request: %v", err)
+	}
 
 	res := Pin{}
 
-	if err := c.sendRequest(req, &res); err != nil {
-		return nil, err
+	err = c.SendRequest(req, &res)
+	if err != nil {
+		return nil, fmt.Errorf("Error sending request: %v", err)
 	}
 	return &res, nil
 }

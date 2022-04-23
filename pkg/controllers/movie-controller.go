@@ -4,9 +4,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"strconv"
 
 	"movie-mux/pkg/models"
+	"movie-mux/pkg/shared"
 
 	"movie-mux/pkg/utils"
 
@@ -29,14 +31,26 @@ func GetMovies(w http.ResponseWriter, r *http.Request) {
 
 //CreateMovie creates a new movie
 func CreateMovie(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("CreateMovie")
 	Movie := &models.Movie{}
 	utils.ParseBody(r, Movie)
-	fmt.Println("parsed body")
 	m := Movie.Create()
-	fmt.Println("created")
-	res, _ := json.Marshal(m)
+
+	//create a new Ipfs Client
+	ipfsClient := shared.NewIpfsClient(
+		os.Getenv("PINATA_API_KEY"),
+		os.Getenv("PINATA_API_SECRET"))
+
 	w.Header().Set("Content-Type", "application/json")
+
+	_, err := ipfsClient.PinJSON(m)
+	if err != nil {
+		fmt.Println("error pinning json to ipfs", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{"message": "` + err.Error() + `"}`))
+	}
+
+	res, _ := json.Marshal(m)
+
 	w.WriteHeader(http.StatusOK)
 	w.Write(res)
 }
@@ -52,6 +66,7 @@ func GetMovieByID(w http.ResponseWriter, r *http.Request) {
 	}
 	m, _ := models.GetMovieById(ID)
 	res, _ := json.Marshal(m)
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	w.Write(res)
